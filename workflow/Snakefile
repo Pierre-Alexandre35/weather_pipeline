@@ -1,0 +1,6 @@
+rule all:
+    input:
+        "results/weather_report.txt",
+
+
+include: "rules/get_weather.smk"
