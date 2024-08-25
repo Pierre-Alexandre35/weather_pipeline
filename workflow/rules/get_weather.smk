@@ -6,5 +6,6 @@ rule get_weather:
     params:
         latitude=config["latitude"],
         longitude=config["longitude"],
+        forecast_days=config.get("forecast_days", None), 
     script:
         "../scripts/get_weather/main.py"

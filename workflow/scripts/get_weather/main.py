@@ -5,7 +5,7 @@ from pathlib import Path
 import requests
 from requests.adapters import HTTPAdapter, Retry
 import yaml
-from typing import Optional
+from typing import Optional, List
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -50,13 +50,17 @@ def create_session() -> requests.Session:
     session.mount("https://", HTTPAdapter(max_retries=retries))
     return session
 
-def fetch_weather_data(session: requests.Session, latitude: float, longitude: float) -> Optional[dict]:
+def fetch_weather_data(session: requests.Session, latitude: float, longitude: float, forecast_days: Optional[int] = None) -> Optional[dict]:
     params = {
         "latitude": latitude,
         "longitude": longitude,
         "current_weather": True,
         "timezone": "auto",
     }
+    if forecast_days:
+        params["daily"] = "temperature_2m_max,temperature_2m_min,weathercode"
+        params["forecast_days"] = forecast_days
+    
     try:
         response = session.get(WEATHER_API_URL, params=params, timeout=10)
         response.raise_for_status()
@@ -71,31 +75,50 @@ def fetch_weather_data(session: requests.Session, latitude: float, longitude: fl
         logger.exception("JSON decoding failed for the response")
     return None
 
-def parse_weather_data(data: dict) -> Optional[str]:
+def parse_weather_data(data: dict, forecast_days: Optional[int] = None) -> Optional[List[str]]:
+    output = []
     if "current_weather" in data:
         temp_celsius = data["current_weather"]["temperature"]
         weather_code = data["current_weather"]["weathercode"]
         weather_description = WEATHER_DESCRIPTIONS.get(weather_code, "Unknown")
-        output = (
+        current_weather = (
             f"Current weather ({datetime.datetime.now(tz=datetime.UTC)}):"
             f" {temp_celsius:.1f}°C, {weather_description}"
         )
-        logger.info("Output: %s", output)
+        output.append(current_weather)
+        logger.info("Current weather: %s", current_weather)
+    
+    if forecast_days and "daily" in data:
+        daily_data = data["daily"]
+        for i in range(forecast_days):
+            date = daily_data["time"][i]
+            max_temp = daily_data["temperature_2m_max"][i]
+            min_temp = daily_data["temperature_2m_min"][i]
+            weather_code = daily_data["weathercode"][i]
+            weather_description = WEATHER_DESCRIPTIONS.get(weather_code, "Unknown")
+            forecast = (
+                f"Forecast for {date}: Max Temp: {max_temp:.1f}°C, "
+                f"Min Temp: {min_temp:.1f}°C, {weather_description}"
+            )
+            output.append(forecast)
+            logger.info("Forecast: %s", forecast)
+    
+    if output:
         return output
     logger.error("Failed to fetch weather data")
     return None
 
-def get_weather(latitude: float, longitude: float) -> Optional[str]:
-    logger.info("Fetching weather data for [lat: %f, long: %f]", latitude, longitude)
+def get_weather(latitude: float, longitude: float, forecast_days: Optional[int] = None) -> Optional[List[str]]:
+    logger.info("Fetching weather data for [lat: %f, long: %f] with forecast days: %s", latitude, longitude, forecast_days)
 
     if not validate_coordinates(latitude, longitude):
         return None
 
     session = create_session()
-    data = fetch_weather_data(session, latitude, longitude)
+    data = fetch_weather_data(session, latitude, longitude, forecast_days)
 
     if data:
-        return parse_weather_data(data)
+        return parse_weather_data(data, forecast_days)
 
     return None
 
@@ -103,6 +126,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Get weather data")
     parser.add_argument("--latitude", type=float, help="Latitude of the location")
     parser.add_argument("--longitude", type=float, help="Longitude of the location")
+    parser.add_argument("--forecast", type=int, help="Number of forecast days (1-7)", choices=range(1, 8))
     args = parser.parse_args()
 
     # Load from config if not provided as arguments
@@ -111,20 +135,24 @@ def main() -> None:
             config = yaml.safe_load(f)
             latitude = config.get("latitude")
             longitude = config.get("longitude")
+            forecast_days = config.get("forecast_days", None)  # Get forecast_days from config
     else:
         latitude = args.latitude
         longitude = args.longitude
+        forecast_days = args.forecast if args.forecast else None  # Handle optional forecast
 
-    print(f"Received latitude: {latitude}, longitude: {longitude}")  # Debugging line
+    # Debugging print to check if forecast_days is correctly set
+    print(f"Received latitude: {latitude}, longitude: {longitude}, forecast days: {forecast_days}")
 
-    weather_report = get_weather(latitude, longitude)
+    weather_report = get_weather(latitude, longitude, forecast_days)
     if not weather_report:
         return
 
     logger.info("Writing weather report to %s", OUTPUT_FILE)
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     with OUTPUT_FILE.open("w+") as f:
-        f.write(weather_report)
+        for line in weather_report:
+            f.write(line + "\n")
 
 if __name__ == "__main__":
     main()
