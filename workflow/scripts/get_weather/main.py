@@ -5,6 +5,7 @@ from pathlib import Path
 import requests
 from requests.adapters import HTTPAdapter, Retry
 import yaml
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -33,44 +34,44 @@ WEATHER_DESCRIPTIONS = {
 }
 OUTPUT_FILE = Path("results/weather_report.txt")
 
+def validate_coordinates(latitude: float, longitude: float) -> bool:
+    if -90 <= latitude <= 90 and -180 <= longitude <= 180:
+        return True
+    logger.error("Invalid latitude or longitude values")
+    return False
 
-def get_weather(latitude: float, longitude: float) -> str | None:
-
-    logger.info(
-        "Fetching weather data for [lat: %f, long: %f]",
-        latitude,
-        longitude,
+def create_session() -> requests.Session:
+    session = requests.Session()
+    retries = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504]
     )
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+    return session
+
+def fetch_weather_data(session: requests.Session, latitude: float, longitude: float) -> Optional[dict]:
     params = {
         "latitude": latitude,
         "longitude": longitude,
         "current_weather": True,
         "timezone": "auto",
     }
-    logger.info("Calling Open-meteo API")
-    session = requests.Session()
-    retries = Retry(
-        total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504]
-    )
-    session.mount("https://", HTTPAdapter(max_retries=retries))
-
     try:
         response = session.get(WEATHER_API_URL, params=params, timeout=10)
         response.raise_for_status()
-        data = response.json()
+        return response.json()
     except requests.exceptions.Timeout:
         logger.exception("Request to Open-Meteo API timed out")
-        return None
     except requests.exceptions.TooManyRedirects:
         logger.exception("Too many redirects during API request")
-        return None
     except requests.exceptions.RequestException as e:
         logger.exception("RequestException: Failed to fetch weather data: %s", e)
-        return None
     except ValueError:
         logger.exception("JSON decoding failed for the response")
-        return None
+    return None
 
+def parse_weather_data(data: dict) -> Optional[str]:
     if "current_weather" in data:
         temp_celsius = data["current_weather"]["temperature"]
         weather_code = data["current_weather"]["weathercode"]
@@ -81,10 +82,22 @@ def get_weather(latitude: float, longitude: float) -> str | None:
         )
         logger.info("Output: %s", output)
         return output
-
     logger.error("Failed to fetch weather data")
     return None
 
+def get_weather(latitude: float, longitude: float) -> Optional[str]:
+    logger.info("Fetching weather data for [lat: %f, long: %f]", latitude, longitude)
+
+    if not validate_coordinates(latitude, longitude):
+        return None
+
+    session = create_session()
+    data = fetch_weather_data(session, latitude, longitude)
+
+    if data:
+        return parse_weather_data(data)
+
+    return None
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Get weather data")
@@ -103,13 +116,6 @@ def main() -> None:
         longitude = args.longitude
 
     print(f"Received latitude: {latitude}, longitude: {longitude}")  # Debugging line
-    if -90 <= latitude <= 90 and -180 <= longitude <= 180:
-        return True
-    logger.error("Invalid latitude or longitude values")
-    return False
-    
-    logger.error("Invalid latitude or longitude values")
-    return False
 
     weather_report = get_weather(latitude, longitude)
     if not weather_report:
@@ -119,7 +125,6 @@ def main() -> None:
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     with OUTPUT_FILE.open("w+") as f:
         f.write(weather_report)
-
 
 if __name__ == "__main__":
     main()
