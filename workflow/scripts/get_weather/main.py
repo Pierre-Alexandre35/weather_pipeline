@@ -3,6 +3,7 @@ import datetime
 import logging
 from pathlib import Path
 import requests
+from requests.adapters import HTTPAdapter, Retry
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -47,11 +48,27 @@ def get_weather(latitude: float, longitude: float) -> str | None:
         "timezone": "auto",
     }
     logger.info("Calling Open-meteo API")
+    session = requests.Session()
+    retries = Retry(
+        total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504]
+    )
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+
     try:
-        response = requests.get(WEATHER_API_URL, params=params, timeout=10)
+        response = session.get(WEATHER_API_URL, params=params, timeout=10)
+        response.raise_for_status()
         data = response.json()
-    except requests.exceptions.RequestException:
-        logger.exception("Failed to fetch weather data: %s")
+    except requests.exceptions.Timeout:
+        logger.exception("Request to Open-Meteo API timed out")
+        return None
+    except requests.exceptions.TooManyRedirects:
+        logger.exception("Too many redirects during API request")
+        return None
+    except requests.exceptions.RequestException as e:
+        logger.exception("RequestException: Failed to fetch weather data: %s", e)
+        return None
+    except ValueError:
+        logger.exception("JSON decoding failed for the response")
         return None
 
     if "current_weather" in data:
