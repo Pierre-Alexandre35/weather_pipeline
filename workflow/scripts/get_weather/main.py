@@ -32,7 +32,6 @@ WEATHER_DESCRIPTIONS = {
     75: "Heavy snow fall",
     95: "Thunderstorm",
 }
-OUTPUT_FILE = Path("results/weather_report.txt")
 
 def validate_coordinates(latitude: float, longitude: float) -> bool:
     if -90 <= latitude <= 90 and -180 <= longitude <= 180:
@@ -118,6 +117,7 @@ def get_weather(latitude: float, longitude: float, forecast_days: Optional[int] 
     data = fetch_weather_data(session, latitude, longitude, forecast_days)
 
     if data:
+        print(data)
         return parse_weather_data(data, forecast_days)
 
     return None
@@ -147,10 +147,18 @@ def main() -> None:
     weather_report = get_weather(latitude, longitude, forecast_days)
     if not weather_report:
         return
+    
+    current_timestamp = datetime.datetime.utcnow().strftime("%Y%m%d_%H%MUTC")
+    
+    # File structure: /data/weather/YYYY/MM/DD/latitude_longitude_forecast_days_timestamp.txt
+    filename = f"{latitude}_{longitude}_{forecast_days}_{current_timestamp}.txt"
+    output_dir = Path(f"results/{datetime.datetime.utcnow().strftime('%Y/%m/%d/')}")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    logger.info("Writing weather report to %s", OUTPUT_FILE)
-    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with OUTPUT_FILE.open("w+") as f:
+    output_path = output_dir / filename
+
+    logger.info("Writing weather report to %s", output_path)
+    with output_path.open("w+") as f:
         for line in weather_report:
             f.write(line + "\n")
 
