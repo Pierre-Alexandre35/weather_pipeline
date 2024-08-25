@@ -1,0 +1,4 @@
+Current weather (2024-08-25 17:58:46.829034+00:00): 20.8°C, Clear sky
+Forecast for 2024-08-25: Max Temp: 25.9°C, Min Temp: 13.4°C, Clear sky
+Forecast for 2024-08-26: Max Temp: 23.9°C, Min Temp: 11.4°C, Overcast
+Forecast for 2024-08-27: Max Temp: 26.6°C, Min Temp: 12.7°C, Fog
