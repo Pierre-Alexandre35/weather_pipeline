@@ -1,4 +1,4 @@
-- reformat the config.yaml like this following example: 
+- reformat the config.yaml following this example: 
 ```
 cities:
   paris:
@@ -15,10 +15,11 @@ cities:
     forecast_days: 3
 ```
 - add a new Snakefile command to be able to generate get_weather for all cities available within the config.yaml file
-- be able to run Snakefile get_weather for 1 or more cities using CLI such as snakemake ```--forceall san_francisco```
-- store the output in a different format (csv? parquet?)
-- Use the medallion architecture (bronze, silver, gold):
-  - store raw files in GCS 
-  - insert enriched files into a database (PSQL?)
-  - Gold = weather predictions? by using third-party libraries and current data?
-- unit testing 
+- be able to run Snakefile get_weather for 1 or more cities using CLI such as ```snakemake --forceall san_francisco```
+- Store the output in ```.csv``` or ```parquet``` rather than using ```.txt``` 
+- Use a medallion architecture (bronze, silver, gold):
+  - store raw files in Google Cloud Storage  
+  - insert enriched files into a database (```PSQL?```)
+  - Gold layer could be use for weather predictions?
+- Add unit tests 
+- Use ```Poetry``` instead of ```requirements.txt``` 
