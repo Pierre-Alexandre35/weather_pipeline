@@ -103,6 +103,13 @@ def main() -> None:
         longitude = args.longitude
 
     print(f"Received latitude: {latitude}, longitude: {longitude}")  # Debugging line
+    if -90 <= latitude <= 90 and -180 <= longitude <= 180:
+        return True
+    logger.error("Invalid latitude or longitude values")
+    return False
+    
+    logger.error("Invalid latitude or longitude values")
+    return False
 
     weather_report = get_weather(latitude, longitude)
     if not weather_report:
