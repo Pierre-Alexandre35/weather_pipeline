@@ -1,10 +1,9 @@
-"""Get weather data from Open-meteo API."""
-
+import argparse
 import datetime
 import logging
 from pathlib import Path
-
 import requests
+import yaml
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -35,15 +34,7 @@ OUTPUT_FILE = Path("results/weather_report.txt")
 
 
 def get_weather(latitude: float, longitude: float) -> str | None:
-    """Fetch weather data from Open-meteo API.
 
-    Args:
-        latitude (float): Latitude
-        longitude (float): Longitude
-
-    Returns:
-        str | None: Weather report
-    """
     logger.info(
         "Fetching weather data for [lat: %f, long: %f]",
         latitude,
@@ -52,7 +43,7 @@ def get_weather(latitude: float, longitude: float) -> str | None:
     params = {
         "latitude": latitude,
         "longitude": longitude,
-        "current": "temperature_2m,weather_code",
+        "current_weather": True,
         "timezone": "auto",
     }
     logger.info("Calling Open-meteo API")
@@ -63,9 +54,9 @@ def get_weather(latitude: float, longitude: float) -> str | None:
         logger.exception("Failed to fetch weather data: %s")
         return None
 
-    if "current" in data:
-        temp_celsius = data["current"]["temperature_2m"]
-        weather_code = data["current"]["weather_code"]
+    if "current_weather" in data:
+        temp_celsius = data["current_weather"]["temperature"]
+        weather_code = data["current_weather"]["weathercode"]
         weather_description = WEATHER_DESCRIPTIONS.get(weather_code, "Unknown")
         output = (
             f"Current weather ({datetime.datetime.now(tz=datetime.UTC)}):"
@@ -79,9 +70,22 @@ def get_weather(latitude: float, longitude: float) -> str | None:
 
 
 def main() -> None:
-    """Main function."""
-    latitude = 51.5074
-    longitude = -0.1278
+    parser = argparse.ArgumentParser(description="Get weather data")
+    parser.add_argument("--latitude", type=float, help="Latitude of the location")
+    parser.add_argument("--longitude", type=float, help="Longitude of the location")
+    args = parser.parse_args()
+
+    # Load from config if not provided as arguments
+    if args.latitude is None or args.longitude is None:
+        with open("config.yaml") as f:
+            config = yaml.safe_load(f)
+            latitude = config.get("latitude")
+            longitude = config.get("longitude")
+    else:
+        latitude = args.latitude
+        longitude = args.longitude
+
+    print(f"Received latitude: {latitude}, longitude: {longitude}")  # Debugging line
 
     weather_report = get_weather(latitude, longitude)
     if not weather_report:

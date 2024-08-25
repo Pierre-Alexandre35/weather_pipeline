@@ -3,5 +3,8 @@ rule get_weather:
         "results/weather_report.txt",
     log:
         "logs/weather_report.log",
+    params:
+        latitude=config["latitude"],
+        longitude=config["longitude"],
     script:
         "../scripts/get_weather/main.py"
